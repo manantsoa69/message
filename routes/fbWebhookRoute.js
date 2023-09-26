@@ -7,7 +7,7 @@ const { sendMessage } = require('../helper/messengerApi');
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://reponse-5fma1s4l.b4a.run/generate-response';
+    const complexionServiceUrl = 'https://response-qqh1.onrender.com/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
