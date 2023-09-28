@@ -4,7 +4,7 @@ require('dotenv').config();
 const axios = require('axios'); // Import axios
 
 const { sendMessage } = require('../helper/messengerApi');
-
+const { chatCompletion } = require('../helper/openaiApi');
 async function callChatCompletionService(prompt, fbid) {
   try {
     const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
@@ -53,16 +53,15 @@ router.post('/', async (req, res) => {
           const result = await callChatCompletionService(query, fbid);
           await sendMessage(fbid, result.response);
           res.status(200).send('OK');
-        } catch (error) {
-          console.error(error);
-          res.status(500).send('Internal Server Error');
+          } catch (error) { 
+            await chatCompletion(query, fbid);   
+            console.log('chat')
+          }
         }
       } else {
         res.status(200).send('OK');
       }
-    } else {
-      res.status(200).send('OK');
-    }
+
   } catch (error) {
     console.error(error);
     res.status(500).send('Internal Server Error');
