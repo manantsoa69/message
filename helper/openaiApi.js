@@ -1,38 +1,27 @@
-require('dotenv').config();
-const { Configuration, OpenAIApi } = require("openai");
+const { Hercai } = require('hercai');
+const client = new Hercai();
+const { sendMessage } = require('./messengerApi');
+const chatCompletion = async (prompt, fbid) => {
+  try {
+    
+    const response = await client.question({ model: "v2", content: `You repley in 3 sentence${prompt}` });
 
-const configuration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
+    let content = response.reply;
 
-const chatCompletion = async (prompt) => {
 
-    try {
-        const response = await openai.createChatCompletion(
-            {
-                model: 'gpt-3.5-turbo',
-                messages: [
-                    { "role": "system", "content": "You are a helpful assistant." },
-                    { "role": "user", "content": prompt }
-                ]
-            }
-        );
+    // Send the modified response data
+    await sendMessage(fbid, content);
 
-        let content = response.data.choices[0].message.content;
-
-        return {
-            status: 1,
-            response: content
-        };
-    } catch (error) {
-        return {
-            status: 0,
-            response: ''
-        };
-    }
+    return {};
+  } catch (error) {
+    console.error('Error occurred while generating chat completion:', error);
+    return {
+      status: 0,
+      response: '',
+    };
+  }
 };
 
 module.exports = {
-  chatCompletion
+  chatCompletion,
 };
