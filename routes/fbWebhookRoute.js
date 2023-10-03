@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 const axios = require('axios'); // Import axios
-
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
+const processingStatus = {};// Corrected variable name
+
 async function callChatCompletionService(prompt, fbid) {
   try {
     const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
@@ -21,7 +22,7 @@ async function callChatCompletionService(prompt, fbid) {
 
     return response.data; // Assuming the service responds with JSON data
   } catch (error) {
-    console.error('Error calling chat completion service:', error);
+    console.error('Error calling chat completion service:');
     throw error;
   }
 }
@@ -47,25 +48,37 @@ router.post('/', async (req, res) => {
       if (message && message.text) {
         let { text: query } = message;
         console.log(`${fbid}`);
+        // If fbid is processing, ignore the new request
+        if (processingStatus[fbid]) {
+          console.log('Already processing, ignoring new request.');
+          return res.sendStatus(200);
+        }
+
+        // Set processing status to true for the current fbid
+        processingStatus[fbid] = true;
+
 
         // Make the call to callChatCompletionService asynchronous
         try {
           const result = await callChatCompletionService(query, fbid);
+
+          // Send the response back to the user
           await sendMessage(fbid, result.response);
-          res.status(200).send('OK');
-          } catch (error) { 
-            await chatCompletion(query, fbid);   
-            console.log('chat')
-          }
+          delete processingStatus[fbid];
+        } catch (error) {
+          await chatCompletion(query, fbid);
+
+          delete processingStatus[fbid];
+          console.log('chat');
         }
-      } else {
-        res.status(200).send('OK');
       }
+    }       
 
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Internal Server Error');
+    console.error('Error occurred:', error);
   }
+
+  res.sendStatus(200);
 });
 
 module.exports = {
