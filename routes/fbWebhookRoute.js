@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
         // Set a TTL of 20 seconds for processing status
         setTimeout(() => {
           delete processingStatus[fbid];
-        }, 20000); // 20 seconds in milliseconds
+        }, 30000); // 20 seconds in milliseconds
 
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
