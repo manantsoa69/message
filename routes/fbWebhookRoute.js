@@ -5,10 +5,41 @@ const axios = require('axios'); // Import axios
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
 const processingStatus = {};// Corrected variable name
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
+
+// Function to save chat history to Redis with a limit of 2 entries
+async function saveChatHistory(fbid, humanInput, aiQueryResult) {
+  try {
+    const chatEntry = `Human: ${humanInput}\n AI: ${aiQueryResult}`;
+    
+    // Set a limit to keep only the latest 2 entries
+    await redis.multi()
+      .rpush(`${fbid}`, chatEntry) // Append the new chat entry
+      .ltrim(`${fbid}`, -2, -1)   // Trim the list to keep only the last 2 entries
+      .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes)
+      .exec();
+  } catch (error) {
+    console.error('Error saving chat history to Redis:', error);
+  }
+}
+
+
+// Function to retrieve chat history from Redis
+async function getChatHistory(fbid) {
+  try {
+    // Retrieve the entire chat history for the user
+    const chatHistory = await redis.lrange(`${fbid}`, 0, -1);
+    return chatHistory || [];
+  } catch (error) {
+    console.error('Error retrieving chat history from Redis:', error);
+    return [];
+  }
+}
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
+    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
@@ -57,23 +88,33 @@ router.post('/', async (req, res) => {
         // Set processing status to true for the current fbid
         processingStatus[fbid] = true;
 
+        // Retrieve the chat history for the current user
+        const chatHistory = await getChatHistory(fbid);
+        console.log(chatHistory)
+        const chat = `last converstion ${chatHistory} + human new qestion :${query}`;
 
-        // Make the call to callChatCompletionService asynchronous
         try {
-          const result = await callChatCompletionService(query, fbid);
+//const chat = `${chatHistory} + human :${query}`;
+          const result = await callChatCompletionService(chat, fbid);
 
-          // Send the response back to the user
-          await sendMessage(fbid, result.response);
+          // Concurrently save the AI response to chat history and send the response back to the user
+          await Promise.all([
+            saveChatHistory(fbid, query, result.response),
+            sendMessage(fbid, result.response),
+          ]);
+
           delete processingStatus[fbid];
         } catch (error) {
-          await chatCompletion(query, fbid);
-
+          const rep = await chatCompletion(chat, fbid);
+          console.log("ok")
+          await Promise.all([
+            saveChatHistory(fbid, query, rep),
+            sendMessage(fbid, rep),
+          ]);
           delete processingStatus[fbid];
-          console.log('chat');
         }
       }
-    }       
-
+    }
   } catch (error) {
     console.error('Error occurred:', error);
   }
