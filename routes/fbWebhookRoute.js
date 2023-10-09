@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 require('dotenv').config();
-const axios = require('axios'); // Import axios
+const axios = require('axios');
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
-const processingStatus = {};// Corrected variable name
+const processingStatus = {}; // Corrected variable name
 const Redis = require('ioredis');
 const redis = new Redis(process.env.REDIS_URL);
 
@@ -12,18 +12,17 @@ const redis = new Redis(process.env.REDIS_URL);
 async function saveChatHistory(fbid, humanInput, aiQueryResult) {
   try {
     const chatEntry = `Human: ${humanInput}\n AI: ${aiQueryResult}`;
-    
+
     // Set a limit to keep only the latest 2 entries
     await redis.multi()
       .rpush(`${fbid}`, chatEntry) // Append the new chat entry
       .ltrim(`${fbid}`, -2, -1)   // Trim the list to keep only the last 2 entries
-      .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes)
+      .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes) for chat history
       .exec();
   } catch (error) {
     console.error('Error saving chat history to Redis:', error);
   }
 }
-
 
 // Function to retrieve chat history from Redis
 async function getChatHistory(fbid) {
@@ -39,7 +38,7 @@ async function getChatHistory(fbid) {
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
+    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
@@ -88,13 +87,17 @@ router.post('/', async (req, res) => {
         // Set processing status to true for the current fbid
         processingStatus[fbid] = true;
 
+        // Set a TTL of 20 seconds for processing status
+        setTimeout(() => {
+          delete processingStatus[fbid];
+        }, 20000); // 20 seconds in milliseconds
+
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
- 
-        const chat = `last converstion ${chatHistory} + human new qestion :${query}`;
+        console.log(chatHistory);
+        const chat = `last converstion ${chatHistory} + human new question: ${query}`;
 
         try {
-//const chat = `${chatHistory} + human :${query}`;
           const result = await callChatCompletionService(chat, fbid);
 
           // Concurrently save the AI response to chat history and send the response back to the user
@@ -106,7 +109,7 @@ router.post('/', async (req, res) => {
           delete processingStatus[fbid];
         } catch (error) {
           const rep = await chatCompletion(chat, fbid);
-          console.log("ok")
+          console.log("ok");
           await Promise.all([
             saveChatHistory(fbid, query, rep),
             sendMessage(fbid, rep),
