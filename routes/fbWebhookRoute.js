@@ -94,7 +94,7 @@ router.post('/', async (req, res) => {
 
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
-        console.log(chatHistory);
+
         const chat = `last converstion ${chatHistory} + human new question: ${query}`;
 
         try {
