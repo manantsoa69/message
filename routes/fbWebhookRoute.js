@@ -7,7 +7,7 @@ const { chatCompletion } = require('../helper/openaiApi');
 const processingStatus = {}; // Corrected variable name
 const Redis = require('ioredis');
 const redis = new Redis(process.env.REDIS_URL);
-
+const emojiRegex = /[\uD800-\uDFFF]./g;
 // Function to save chat history to Redis with a limit of 2 entries
 async function saveChatHistory(fbid, humanInput, aiQueryResult) {
   try {
@@ -50,26 +50,19 @@ async function callChatCompletionService(prompt, fbid) {
       }
     );
 
-    return response.data; // Assuming the service responds with JSON data
+    const responseData = response.data;
+
+    // Check if the response contains an emoji
+    const hasEmoji = emojiRegex.test(responseData.response);
+
+    return { ...responseData, hasEmoji };
   } catch (error) {
     console.error('Error calling chat completion service:');
     throw error;
   }
 }
 
-// Handle GET requests for verification
-router.get('/', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode && token && mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
+// Handle POST requests
 router.post('/', async (req, res) => {
   try {
     const { entry } = req.body;
@@ -94,31 +87,43 @@ router.post('/', async (req, res) => {
 
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
-
-        const chat = `last converstion ${chatHistory} + human new question: ${query}`;
+        console.log(chatHistory);
+        const chat = `${chatHistory}\nhuman: ${query}\n AI:`;
 
         try {
           const result = await callChatCompletionService(chat, fbid);
 
-          // Concurrently save the AI response to chat history and send the response back to the user
-          await Promise.all([
-            saveChatHistory(fbid, query, result.response),
-            sendMessage(fbid, result.response),
-          ]);
+          // Check if the response contains an emoji
+          if (result.hasEmoji) {
+            await Promise.all([
+              saveChatHistory(fbid, query, result.response),
+              sendMessage(fbid, result.response),
+            ]);            
+            // Handle the emoji case here
+            delete processingStatus[fbid];
+            console.log('Response contains an emoji')
+          } else {
+            const updateProviderUrl = 'https://repc.onrender.com/update_provider';
+
+            await axios.get(updateProviderUrl);
+            // The response does not contain an emoji, call the chatCompletion service
+            const rep = await chatCompletion(chat, fbid);
+            console.log("ok");
+            await Promise.all([
+              saveChatHistory(fbid, query, rep),
+              sendMessage(fbid, rep),
+            ]);
+          }
 
           delete processingStatus[fbid];
         } catch (error) {
-          const rep = await chatCompletion(chat, fbid);
-          console.log("ok");
-          await Promise.all([
-            saveChatHistory(fbid, query, rep),
-            sendMessage(fbid, rep),
-          ]);
+          console.error('Error occurred:', error);
           delete processingStatus[fbid];
         }
       }
     }
   } catch (error) {
+    delete processingStatus[fbid];
     console.error('Error occurred:', error);
   }
 
