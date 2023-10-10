@@ -32,7 +32,7 @@ const getCachedPageID = () => {
 
 // Create a single HTTP client instance and reuse it
 const apiClient = axios.create({
-  baseURL: 'https://graph.facebook.com/v11.0/',
+  baseURL: 'https://graph.facebook.com/v18.0/',
 });
 
 // Set the access token in the client instance's defaults by calling getCachedToken()
@@ -40,21 +40,45 @@ apiClient.defaults.params = {
   access_token: getCachedToken(),
 };
 
+const splitMessage = (message, maxLength) => {
+  const parts = [];
+  let currentPart = '';
+
+  const splitTokens = /(\s+|[,.;!?])/; // Regex to split on space or common punctuation marks
+  const words = message.split(splitTokens);
+
+  for (const word of words) {
+    if ((currentPart + word).length <= maxLength) {
+      currentPart += word;
+    } else {
+      parts.push(currentPart);
+      currentPart = word;
+    }
+  }
+
+  if (currentPart.length > 0) {
+    parts.push(currentPart);
+  }
+
+  return parts;
+};
+
 const sendMessage = async (fbid, message) => {
   try {
     // Determine the maximum message length (you can adjust this as needed)
-    const maxMessageLength = 2000; // Example: Split messages if longer than 300 characters
+    const maxMessageLength = 2000;
 
     if (message.length <= maxMessageLength) {
       // Message is within the length limit, send it as is
       await sendSingleMessage(fbid, message);
     } else {
-      // Message is too long, split it into two parts and send separately
-      const part1 = message.substring(0, maxMessageLength);
-      const part2 = message.substring(maxMessageLength);
+      // Message is too long, split it based on space or punctuation
+      const messageParts = splitMessage(message, maxMessageLength);
 
-      await sendSingleMessage(fbid, part1);
-      await sendSingleMessage(fbid, part2);
+      // Send each part separately
+      for (const part of messageParts) {
+        await sendSingleMessage(fbid, part);
+      }
     }
     return 1;
   } catch (error) {
@@ -74,4 +98,3 @@ const sendSingleMessage = async (fbid, message) => {
 module.exports = {
   sendMessage,
 };
-
