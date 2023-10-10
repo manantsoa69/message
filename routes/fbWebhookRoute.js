@@ -38,7 +38,7 @@ async function getChatHistory(fbid) {
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
+    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
@@ -57,7 +57,7 @@ async function callChatCompletionService(prompt, fbid) {
 
     return { ...responseData, hasEmoji };
   } catch (error) {
-    console.error('Error calling chat completion service:');
+    console.error('Error calling chat completion service:', error);
     throw error;
   }
 }
@@ -87,8 +87,8 @@ router.post('/', async (req, res) => {
 
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
-        //console.log(chatHistory);
-        const chat = `${chatHistory}\nhuman: ${query}\n AI:`;
+        console.log(chatHistory);
+        const chat = `${chatHistory}\nhuman:${query}\nAI:`;
 
         try {
           const result = await callChatCompletionService(chat, fbid);
@@ -101,9 +101,9 @@ router.post('/', async (req, res) => {
             ]);            
             // Handle the emoji case here
             delete processingStatus[fbid];
-            console.log('Response contains an emoji')
+            console.log('Response contains an emoji', result.response)
           } else {
-            const updateProviderUrl = 'https://repc.onrender.com/update_provider';
+            const updateProviderUrl = 'https://python.ntrsoa.repl.co/update_provider';
 
             await axios.get(updateProviderUrl);
             // The response does not contain an emoji, call the chatCompletion service
@@ -123,11 +123,22 @@ router.post('/', async (req, res) => {
       }
     }
   } catch (error) {
-    delete processingStatus[fbid];
     console.error('Error occurred:', error);
   }
 
   res.sendStatus(200);
+});
+// Handle GET requests for verification
+router.get('/', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode && token && mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
 });
 
 module.exports = {
