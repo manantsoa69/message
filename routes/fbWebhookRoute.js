@@ -124,6 +124,7 @@ router.post('/', async (req, res) => {
     }
   } catch (error) {
     console.error('Error occurred:', error);
+    delete processingStatus[fbid];
   }
 
   res.sendStatus(200);
