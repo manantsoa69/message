@@ -38,7 +38,7 @@ async function getChatHistory(fbid) {
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
+    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
             delete processingStatus[fbid];
             console.log('Response contains an emoji', result.response)
           } else {
-            const updateProviderUrl = 'https://python.ntrsoa.repl.co/update_provider';
+            const updateProviderUrl = 'https://repc.onrender.com/update_provider';
 
             await axios.get(updateProviderUrl);
             // The response does not contain an emoji, call the chatCompletion service
