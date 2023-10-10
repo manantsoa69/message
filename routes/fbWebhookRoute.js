@@ -38,7 +38,7 @@ async function getChatHistory(fbid) {
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
+    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
