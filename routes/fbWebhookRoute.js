@@ -38,7 +38,7 @@ async function getChatHistory(fbid) {
 
 async function callChatCompletionService(prompt, fbid) {
   try {
-    const complexionServiceUrl = 'https://repc.onrender.com/generate-response';
+    const complexionServiceUrl = 'https://python.ntrsoa.repl.co/generate-response';
 
     const response = await axios.post(
       complexionServiceUrl,
@@ -57,7 +57,7 @@ async function callChatCompletionService(prompt, fbid) {
 
     return { ...responseData, hasEmoji };
   } catch (error) {
-    console.error('Error calling chat completion service:', error);
+    console.error('Error calling chat completion service:');
     throw error;
   }
 }
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
             delete processingStatus[fbid];
             console.log('Response contains an emoji', result.response)
           } else {
-            const updateProviderUrl = 'https://repc.onrender.com/update_provider';
+            const updateProviderUrl = 'https://python.ntrsoa.repl.co/update_provider';
 
             await axios.get(updateProviderUrl);
             // The response does not contain an emoji, call the chatCompletion service
@@ -118,13 +118,20 @@ router.post('/', async (req, res) => {
           delete processingStatus[fbid];
         } catch (error) {
           console.error('Error occurred:', error);
+          
+          const rep = await chatCompletion(chat, fbid);
+          console.log("ok");
+          await Promise.all([
+            saveChatHistory(fbid, query, rep),
+            sendMessage(fbid, rep),
+            ]);          
           delete processingStatus[fbid];
         }
       }
     }
   } catch (error) {
-    console.error('Error occurred:', error);
     delete processingStatus[fbid];
+    console.error('Error occurred:', error);
   }
 
   res.sendStatus(200);
