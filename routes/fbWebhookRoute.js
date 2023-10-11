@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 
+const { sendMessage } = require('../helper/messengerApi');
+
 // Handle POST requests
 router.post('/', (req, res) => {
   try {
