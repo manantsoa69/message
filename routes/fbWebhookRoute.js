@@ -13,7 +13,7 @@ router.post('/', (req, res) => {
         const responseMessage = "Je suis actuellement en développement, mais je vous invite à utiliser notre service sur https://www.facebook.com/Ahibot101.";
         
         // Send the response message to the sender (you'll need to implement this)
-        await sendMessage(fbid, responseMessage);
+        sendMessage(fbid, responseMessage);
 
         // You can add more logic here if needed.
 
