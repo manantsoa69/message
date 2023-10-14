@@ -4,13 +4,14 @@ require('dotenv').config();
 const axios = require('axios');
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
+const processingStatus = {}; // Corrected variable name
 const Redis = require('ioredis');
 const redis = new Redis(process.env.REDIS_URL);
 
 // Function to save chat history to Redis with a limit of 2 entries
 async function saveChatHistory(fbid, humanInput, aiQueryResult) {
   try {
-    const chatEntry = `Human:${humanInput}\nAI:${aiQueryResult}`;
+    const chatEntry = `Human: ${humanInput}\n AI: ${aiQueryResult}`;
 
     // Set a limit to keep only the latest 2 entries
     await redis.multi()
@@ -56,8 +57,6 @@ async function callChatCompletionService(prompt, fbid) {
   }
 }
 
-const lastProcessedPrompts = {}; // Keeps track of the last processed prompts for each user (fbid)
-
 // Handle GET requests for verification
 router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -71,28 +70,32 @@ router.get('/', (req, res) => {
   }
 });
 
-// Handle POST requests for chat messages
 router.post('/', async (req, res) => {
   try {
     const { entry } = req.body;
     if (entry && entry.length > 0 && entry[0].messaging && entry[0].messaging.length > 0) {
       const { sender: { id: fbid }, message } = entry[0].messaging[0];
       if (message && message.text) {
-        const { text: query } = message;
+        let { text: query } = message;
         console.log(`${fbid}`);
-
-        // Check if the user's question is the same as the last processed prompt
-        if (lastProcessedPrompts[fbid] === query) {
-          console.log('Received the same question as the last processed prompt, ignoring new request.');
+        // If fbid is processing, ignore the new request
+        if (processingStatus[fbid]) {
+          console.log('Already processing, ignoring new request.');
           return res.sendStatus(200);
         }
 
-        // Set the last processed prompt for the current user
-        lastProcessedPrompts[fbid] = query;
+        // Set processing status to true for the current fbid
+        processingStatus[fbid] = true;
+
+        // Set a TTL of 20 seconds for processing status
+        setTimeout(() => {
+          delete processingStatus[fbid];
+        }, 40000); // 20 seconds in milliseconds
 
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
-        const chat = `${chatHistory}\nhuman:${query}\n AI:`;
+        //console.log(chatHistory);
+        const chat = `${chatHistory}\nhuman: ${query}\n AI:`;
 
         try {
           const result = await callChatCompletionService(chat, fbid);
@@ -102,6 +105,8 @@ router.post('/', async (req, res) => {
             saveChatHistory(fbid, query, result.response),
             sendMessage(fbid, result.response),
           ]);
+
+          delete processingStatus[fbid];
         } catch (error) {
           const rep = await chatCompletion(chat, fbid);
           console.log("ok");
@@ -109,13 +114,12 @@ router.post('/', async (req, res) => {
             saveChatHistory(fbid, query, rep),
             sendMessage(fbid, rep),
           ]);
+          delete processingStatus[fbid];
         }
       }
     }
   } catch (error) {
-    if (fbid) {
-      delete lastProcessedPrompts[fbid]; // Remove the last processed prompt on error
-    }
+    delete processingStatus[fbid];
     console.error('Error occurred:', error);
   }
 
