@@ -4,7 +4,58 @@ require('dotenv').config();
 const axios = require('axios');
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
-const { saveChatHistory, getChatHistory, callChatCompletionService } = require('../helper/chatHistory');
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
+
+// Function to save chat history to Redis with a limit of 2 entries
+async function saveChatHistory(fbid, humanInput, aiQueryResult) {
+  try {
+    const chatEntry = `Human:${humanInput}\nAI:${aiQueryResult}`;
+
+    // Set a limit to keep only the latest 2 entries
+    await redis.multi()
+      .rpush(`${fbid}`, chatEntry) // Append the new chat entry
+      .ltrim(`${fbid}`, -2, -1)   // Trim the list to keep only the last 2 entries
+      .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes) for chat history
+      .exec();
+  } catch (error) {
+    console.error('Error saving chat history to Redis:', error);
+  }
+}
+
+// Function to retrieve chat history from Redis
+async function getChatHistory(fbid) {
+  try {
+    // Retrieve the entire chat history for the user
+    const chatHistory = await redis.lrange(`${fbid}`, 0, -1);
+    return chatHistory || [];
+  } catch (error) {
+    console.error('Error retrieving chat history from Redis:', error);
+    return [];
+  }
+}
+
+async function callChatCompletionService(prompt, fbid) {
+  try {
+    const complexionServiceUrl = 'https://repc.onrender.com/generate_response';
+
+    const response = await axios.post(
+      complexionServiceUrl,
+      { prompt, fbid },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response.data; // Assuming the service responds with JSON data
+  } catch (error) {
+    console.error('Error calling chat completion service:');
+    throw error;
+  }
+}
+
 const lastProcessedPrompts = {}; // Keeps track of the last processed prompts for each user (fbid)
 
 // Handle GET requests for verification
