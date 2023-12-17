@@ -1,21 +1,21 @@
 const express = require('express');
 const router = express.Router();
 require('dotenv').config();
-const axios = require('axios');
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
 const Redis = require('ioredis');
 const redis = new Redis(process.env.REDIS_URL);
 
 // Function to save chat history to Redis with a limit of 2 entries
-async function saveChatHistory(fbid, humanInput, aiQueryResult) {
+async function saveChatHistory(fbid, query, result) {
   try {
-    const chatEntry = `Human:${humanInput}\nAI:${aiQueryResult}`;
+    const chatEntry = `Human:${query}\nAI:${result}`;
+
 
     // Set a limit to keep only the latest 2 entries
     await redis.multi()
       .rpush(`${fbid}`, chatEntry) // Append the new chat entry
-      .ltrim(`${fbid}`, -2, -1)   // Trim the list to keep only the last 2 entries
+      .ltrim(`${fbid}`, -1, -1)   // Trim the list to keep only the last 2 entries
       .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes) for chat history
       .exec();
   } catch (error) {
@@ -32,27 +32,6 @@ async function getChatHistory(fbid) {
   } catch (error) {
     console.error('Error retrieving chat history from Redis:', error);
     return [];
-  }
-}
-
-async function callChatCompletionService(prompt, fbid) {
-  try {
-    const complexionServiceUrl = 'https://repc.onrender.com/generate_response';
-
-    const response = await axios.post(
-      complexionServiceUrl,
-      { prompt, fbid },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    return response.data; // Assuming the service responds with JSON data
-  } catch (error) {
-    console.error('Error calling chat completion service:');
-    throw error;
   }
 }
 
@@ -93,22 +72,32 @@ router.post('/', async (req, res) => {
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
         const chat = `${chatHistory}\nhuman:${query}\n AI:`;
+        console.log('Result:', chat);
+
 
         try {
-          const result = await callChatCompletionService(chat, fbid);
+          const result = await chatCompletion(chat, fbid)
+            
 
-          // Concurrently save the AI response to chat history and send the response back to the user
-          await Promise.all([
-            saveChatHistory(fbid, query, result.response),
-            sendMessage(fbid, result.response),
-          ]);
+          // Check if the result is an object with a 'content' property
+          if (result && result.content) {
+            const responseText = result.content;
+            //console.log('Result:', responseText);
+
+            // Concurrently save the AI response to chat history and send the response back to the user
+            await Promise.all([
+              saveChatHistory(fbid, query, responseText),
+              sendMessage(fbid, responseText),
+            ]);
+
+          } else {
+            console.error('Invalid OpenAI response format:', result);
+            // Handle the case where the OpenAI response format is unexpected
+          }
+
         } catch (error) {
-          const rep = await chatCompletion(chat, fbid);
-          console.log("ok");
-          await Promise.all([
-            saveChatHistory(fbid, query, rep),
-            sendMessage(fbid, rep),
-          ]);
+          // Handle errors appropriately
+          console.error('Error processing chat with OpenAI:', error);
         }
       }
     }
