@@ -30,7 +30,7 @@ const chatCompletion = async (prompt, fbid) => {
     const response = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
       messages: [
-        { role: 'system', content: `short answer ` },
+        { role: 'system', content: `answer directly with short 1 exemple  ` },
         { role: 'user', content: ` ${prompt}` },
       ],
       max_tokens: 200,
@@ -42,9 +42,11 @@ const chatCompletion = async (prompt, fbid) => {
     });
 
     let content = response.data.choices[0].message.content;
-    await sendMessage(fbid, content)
-    console.log('openAI');
-    return { };
+   // await sendMessage(fbid, content)
+    //console.log('openAI');
+    //console.log('resulte:' + content);
+    //const res = result.content;
+    return { content };
     
   } catch (error) {
     console.error('Error occurred while generating chat completion:', error);
@@ -58,5 +60,5 @@ const chatCompletion = async (prompt, fbid) => {
 module.exports = {
   chatCompletion,
 };
-//sk-yVh7zg04sWFnxpv90tAkT3BlbkFJoUW0jabnnHlpbiApPHzTaq
+//aq
 //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
