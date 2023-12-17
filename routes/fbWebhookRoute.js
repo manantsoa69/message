@@ -72,7 +72,7 @@ router.post('/', async (req, res) => {
         // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
         const chat = `${chatHistory}\nhuman:${query}\n AI:`;
-        console.log('Result:', chat);
+       //console.log('Result:', chat);
 
 
         try {
