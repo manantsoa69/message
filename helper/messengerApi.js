@@ -39,12 +39,21 @@ const apiClient = axios.create({
 apiClient.defaults.params = {
   access_token: getCachedToken(),
 };
-
 const splitMessage = (message, maxLength) => {
   const parts = [];
   let currentPart = '';
 
-  const splitTokens = /(\s+|[,.;!?])/; // Regex to split on space or common punctuation marks
+  // Check if the message is an object with a 'content' property
+  if (typeof message === 'object' && message.content) {
+    message = message.content;
+  }
+
+  if (typeof message !== 'string') {
+    console.error('Invalid message format. Expected a string. Received:', message);
+    return parts;
+  }
+
+  const splitTokens = /(\s+|[,.;!?])/;
   const words = message.split(splitTokens);
 
   for (const word of words) {
@@ -65,6 +74,8 @@ const splitMessage = (message, maxLength) => {
 
 const sendMessage = async (fbid, message) => {
   try {
+
+
     // Determine the maximum message length (you can adjust this as needed)
     const maxMessageLength = 2000;
 
@@ -86,6 +97,7 @@ const sendMessage = async (fbid, message) => {
     return 0;
   }
 };
+
 
 const sendSingleMessage = async (fbid, message) => {
   return apiClient.post(`${getCachedPageID()}/messages`, {
