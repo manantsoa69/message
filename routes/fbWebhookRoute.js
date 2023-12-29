@@ -1,9 +1,12 @@
+
 const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 const { sendMessage } = require('../helper/messengerApi');
 const { chatCompletion } = require('../helper/openaiApi');
+const { googlechat } = require('../helper/googleApi');
 const Redis = require('ioredis');
+
 const redis = new Redis(process.env.REDIS_URL);
 
 // Function to save chat history to Redis with a limit of 2 entries
@@ -11,12 +14,11 @@ async function saveChatHistory(fbid, query, result) {
   try {
     const chatEntry = `Human:${query}\nAI:${result}`;
 
-
     // Set a limit to keep only the latest 2 entries
     await redis.multi()
-      .rpush(`${fbid}`, chatEntry) // Append the new chat entry
-      .ltrim(`${fbid}`, -1, -1)   // Trim the list to keep only the last 2 entries
-      .expire(`${fbid}`, 600)      // Set a TTL of 600 seconds (10 minutes) for chat history
+      .rpush(`${fbid}`, chatEntry)
+      .ltrim(`${fbid}`, -1, -1)
+      .expire(`${fbid}`, 600) // Set a TTL of 600 seconds (10 minutes) for chat history
       .exec();
   } catch (error) {
     console.error('Error saving chat history to Redis:', error);
@@ -26,7 +28,6 @@ async function saveChatHistory(fbid, query, result) {
 // Function to retrieve chat history from Redis
 async function getChatHistory(fbid) {
   try {
-    // Retrieve the entire chat history for the user
     const chatHistory = await redis.lrange(`${fbid}`, 0, -1);
     return chatHistory || [];
   } catch (error) {
@@ -35,7 +36,7 @@ async function getChatHistory(fbid) {
   }
 }
 
-const lastProcessedPrompts = {}; // Keeps track of the last processed prompts for each user (fbid)
+const lastProcessedPrompts = {};
 
 // Handle GET requests for verification
 router.get('/', (req, res) => {
@@ -43,7 +44,7 @@ router.get('/', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode && token && mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -57,34 +58,25 @@ router.post('/', async (req, res) => {
     if (entry && entry.length > 0 && entry[0].messaging && entry[0].messaging.length > 0) {
       const { sender: { id: fbid }, message } = entry[0].messaging[0];
       if (message && message.text) {
-        const { text: query } = message;
-        console.log(`${fbid}`);
+        const { text: query } = message
+       // console.log(`Received message from fbid: ${fbid}`);
 
-        // Check if the user's question is the same as the last processed prompt
         if (lastProcessedPrompts[fbid] === query) {
           console.log('Received the same question as the last processed prompt, ignoring new request.');
           return res.sendStatus(200);
         }
 
-        // Set the last processed prompt for the current user
         lastProcessedPrompts[fbid] = query;
 
-        // Retrieve the chat history for the current user
         const chatHistory = await getChatHistory(fbid);
-        const chat = `${chatHistory}\nhuman:${query}\n AI:`;
-       //console.log('Result:', chat);
-
+        const chat = `${chatHistory.join('\n')}\nHuman:${query}\nAI:`;
 
         try {
-          const result = await chatCompletion(chat, fbid)
-            
+          const result = await googlechat(chat, fbid);
 
-          // Check if the result is an object with a 'content' property
           if (result && result.content) {
             const responseText = result.content;
-            //console.log('Result:', responseText);
 
-            // Concurrently save the AI response to chat history and send the response back to the user
             await Promise.all([
               saveChatHistory(fbid, query, responseText),
               sendMessage(fbid, responseText),
@@ -92,18 +84,26 @@ router.post('/', async (req, res) => {
 
           } else {
             console.error('Invalid OpenAI response format:', result);
-            // Handle the case where the OpenAI response format is unexpected
           }
 
         } catch (error) {
-          // Handle errors appropriately
+          const result = await chatCompletion(chat, fbid);
+
+          if (result && result.content) {
+            const responseText = result.content;
+
+            await Promise.all([
+              saveChatHistory(fbid, query, responseText),
+              sendMessage(fbid, responseText),
+            ]);
+          }
           console.error('Error processing chat with OpenAI:', error);
         }
       }
     }
   } catch (error) {
     if (fbid) {
-      delete lastProcessedPrompts[fbid]; // Remove the last processed prompt on error
+      delete lastProcessedPrompts[fbid];
     }
     console.error('Error occurred:', error);
   }
