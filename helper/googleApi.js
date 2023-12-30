@@ -2,7 +2,7 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const NodeCache = require('node-cache');
-
+const { chatCompletion } = require('./openaiApi');
 const myCache = new NodeCache();
 
 // Function to retrieve the API key from the cache or environment variables
@@ -26,10 +26,10 @@ const googlechat = async (prompt) => {
     // Define generation configuration
     const generationConfig = {
       //stopSequences: ["red"],
-      maxOutputTokens: 200,
+      maxOutputTokens: 500,
       temperature: 0.9,
       topP: 0.1,
-      topK: 16,
+      topK: 1,
     };
 
     // For text-only input, use the gemini-pro model
@@ -48,12 +48,15 @@ const googlechat = async (prompt) => {
     return { content };
   } catch (error) {
     console.error('Error occurred while generating chat completion:', error);
-    return {
-      status: 0,
-      response: '',
-    };
-  }
-};
+    const result = await chatCompletion(prompt);
+
+      const content = result.content;
+      //await sendAIrep(fbid, responseText);
+
+      return { content };      
+    }
+  
+  };
 
 module.exports = {
   googlechat,
