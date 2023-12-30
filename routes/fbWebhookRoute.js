@@ -1,13 +1,11 @@
-
 const express = require('express');
 const router = express.Router();
 require('dotenv').config();
 const { sendMessage } = require('../helper/messengerApi');
-const { chatCompletion } = require('../helper/openaiApi');
 const { googlechat } = require('../helper/googleApi');
 const Redis = require('ioredis');
 
-const redis = new Redis(process.env.REDIS_URL);
+const redis = new Redis(process.env.REDIS_URLCAT);
 
 // Function to save chat history to Redis with a limit of 2 entries
 async function saveChatHistory(fbid, query, result) {
@@ -22,6 +20,7 @@ async function saveChatHistory(fbid, query, result) {
       .exec();
   } catch (error) {
     console.error('Error saving chat history to Redis:', error);
+    throw error; // Rethrow the error to propagate it to the caller
   }
 }
 
@@ -32,11 +31,9 @@ async function getChatHistory(fbid) {
     return chatHistory || [];
   } catch (error) {
     console.error('Error retrieving chat history from Redis:', error);
-    return [];
+    throw error; // Rethrow the error to propagate it to the caller
   }
 }
-
-const lastProcessedPrompts = {};
 
 // Handle GET requests for verification
 router.get('/', (req, res) => {
@@ -58,59 +55,29 @@ router.post('/', async (req, res) => {
     if (entry && entry.length > 0 && entry[0].messaging && entry[0].messaging.length > 0) {
       const { sender: { id: fbid }, message } = entry[0].messaging[0];
       if (message && message.text) {
-        const { text: query } = message
-       // console.log(`Received message from fbid: ${fbid}`);
-
-        if (lastProcessedPrompts[fbid] === query) {
-          console.log('Received the same question as the last processed prompt, ignoring new request.');
-          return res.sendStatus(200);
-        }
-
-        lastProcessedPrompts[fbid] = query;
-
+        const { text: query } = message;
         const chatHistory = await getChatHistory(fbid);
-        const chat = `${chatHistory.join('\n')}\nHuman:${query}\nAI:`;
+        const chat = `${chatHistory}\nHuman:${query}\nAI:`;
 
         try {
           const result = await googlechat(chat, fbid);
-
-          if (result && result.content) {
             const responseText = result.content;
-
-            await Promise.all([
-              saveChatHistory(fbid, query, responseText),
-              sendMessage(fbid, responseText),
-            ]);
-
-          } else {
-            console.error('Invalid OpenAI response format:', result);
-          }
-
+          await Promise.all([
+            saveChatHistory(fbid, query, responseText),
+            sendMessage(fbid, responseText),
+          ]);
         } catch (error) {
-          const result = await chatCompletion(chat, fbid);
-
-          if (result && result.content) {
-            const responseText = result.content;
-
-            await Promise.all([
-              saveChatHistory(fbid, query, responseText),
-              sendMessage(fbid, responseText),
-            ]);
-          }
-          console.error('Error processing chat with OpenAI:', error);
+          console.error('Error occurred:', error);
+          throw error; // Rethrow the error to propagate it to the caller
         }
       }
     }
   } catch (error) {
-    if (fbid) {
-      delete lastProcessedPrompts[fbid];
-    }
-    console.error('Error occurred:', error);
+    console.error('Error in message handling:', error);
   }
-
   res.sendStatus(200);
 });
 
 module.exports = {
-  router
+  router,
 };
