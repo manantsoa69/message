@@ -3,16 +3,19 @@ const router = express.Router();
 require('dotenv').config();
 const { sendMessage } = require('../helper/messengerApi');
 const { googlechat } = require('../helper/googleApi');
+const { googlechat1 } = require('../helper/googleApi1');
 const Redis = require('ioredis');
 
 const redis = new Redis(process.env.REDIS_URLCAT);
-
-// Function to save chat history to Redis with a limit of 2 entries
+// Function to save chat history to Redis with a limit of 1 entry
 async function saveChatHistory(fbid, query, result) {
   try {
-    const chatEntry = `Human:${query}\nAI:${result}`;
 
-    // Set a limit to keep only the latest 2 entries
+
+    // Check if the message is an object with a 'content' property
+    const chatEntry = `user:${query}\nmodel:${result}`;
+
+    // Set a limit to keep only the latest 1 entry
     await redis.multi()
       .rpush(`${fbid}`, chatEntry)
       .ltrim(`${fbid}`, -1, -1)
@@ -24,6 +27,8 @@ async function saveChatHistory(fbid, query, result) {
   }
 }
 
+
+
 // Function to retrieve chat history from Redis
 async function getChatHistory(fbid) {
   try {
@@ -34,7 +39,7 @@ async function getChatHistory(fbid) {
     throw error; // Rethrow the error to propagate it to the caller
   }
 }
-
+const lastProcessedPrompts = {}; 
 // Handle GET requests for verification
 router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -47,24 +52,45 @@ router.get('/', (req, res) => {
     res.sendStatus(403);
   }
 });
-
 // Handle POST requests for chat messages
 router.post('/', async (req, res) => {
   try {
     const { entry } = req.body;
+
     if (entry && entry.length > 0 && entry[0].messaging && entry[0].messaging.length > 0) {
       const { sender: { id: fbid }, message } = entry[0].messaging[0];
+
       if (message && message.text) {
         const { text: query } = message;
+        console.log(`${fbid}`);
+
+        // Check if the user's question is the same as the last processed prompt
+        if (lastProcessedPrompts[fbid] === query) {
+          console.log('Received the same question as the last processed prompt, ignoring new request.');
+          return res.sendStatus(200);
+        }
+
+        // Set the last processed prompt for the current user
+        lastProcessedPrompts[fbid] = query;
         const chatHistory = await getChatHistory(fbid);
-        const chat = `${chatHistory}\nHuman:${query}\nAI:`;
+        const chat = `${chatHistory}\nuser:${query}\nmodel:`;
 
         try {
-          const result = await googlechat(chat, fbid);
-            const responseText = result.content;
+          let result;
+          if (Math.random() < 0.5) {
+            result = await googlechat1(chat, fbid);
+          } else {
+            result = await googlechat(chat, fbid);
+          }
+          if (typeof result === 'object' && result.content) {
+              result = result.content;
+          }
+
+
+
           await Promise.all([
-            saveChatHistory(fbid, query, responseText),
-            sendMessage(fbid, responseText),
+            saveChatHistory(fbid, query, result),
+            sendMessage(fbid, result),
           ]);
         } catch (error) {
           console.error('Error occurred:', error);
@@ -73,10 +99,15 @@ router.post('/', async (req, res) => {
       }
     }
   } catch (error) {
-    console.error('Error in message handling:', error);
+    if (fbid) {
+      delete lastProcessedPrompts[fbid]; // Remove the last processed prompt on error
+    }
+    console.error('Error occurred:', error);
   }
+
   res.sendStatus(200);
 });
+
 
 module.exports = {
   router,
