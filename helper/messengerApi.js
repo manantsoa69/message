@@ -43,13 +43,10 @@ const splitMessage = (message, maxLength) => {
   const parts = [];
   let currentPart = '';
 
-  // Check if the message is an object with a 'content' property
-  if (typeof message === 'object' && message.content) {
-    message = message.content;
-  }
 
   if (typeof message !== 'string') {
     console.error('Invalid message format. Expected a string. Received:', message);
+    sendSingleMessage(fbid, 're envoyez votre message');
     return parts;
   }
 
@@ -77,7 +74,8 @@ const sendMessage = async (fbid, message) => {
 
 
     // Determine the maximum message length (you can adjust this as needed)
-    const maxMessageLength = 2000;
+    const maxMessageLength = 1666;
+      
 
     if (message.length <= maxMessageLength) {
       // Message is within the length limit, send it as is
