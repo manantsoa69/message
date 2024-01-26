@@ -31,7 +31,7 @@ const googlechat = async (prompt) => {
     };
 
     const model = genAI.getGenerativeModel({ model: "gemini-pro", generationConfig });
-    console.log('GOOGLE', prompt);
+    console.log('GOOGLE');
 
     const result = await model.generateContent(`${prompt}`);
     const response = await result.response;
