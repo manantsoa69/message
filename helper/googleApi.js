@@ -4,10 +4,9 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const NodeCache = require('node-cache');
 const { chatCompletion } = require('./openaiApi');
 const myCache = new NodeCache();
-
+//AIzaSyCP9iulOmu8kPM2qY4iEsoKkmJ6QnQPamM
 // Function to retrieve the API key from the cache or environment variables
 const getApiKey = () => {
-  // Try to retrieve the API key from the cache
   const cachedApiKey = myCache.get('api_key');
 
   if (cachedApiKey) {
@@ -21,43 +20,57 @@ const getApiKey = () => {
 
 const genAI = new GoogleGenerativeAI(getApiKey());
 
+
 const googlechat = async (prompt) => {
   try {
-    // Define generation configuration
     const generationConfig = {
-      //stopSequences: ["red"],
       maxOutputTokens: 1500,
-      temperature: 0.9,
-      topP: 0.1,
+      temperature: 1.0,
+      topP: 0.36,
       topK: 1,
     };
 
-    // For text-only input, use the gemini-pro model
     const model = genAI.getGenerativeModel({ model: "gemini-pro", generationConfig });
+    console.log('GOOGLE', prompt);
 
-    const result = await model.generateContent(prompt);
+    const result = await model.generateContent(`${prompt}`);
     const response = await result.response;
-    const content = response.text();
 
-    // Uncomment the following lines if you want to send the generated content
-    // to the messenger API
-    // await sendMessage(fbid, content);
-    // console.log('Google Generative AI');
-    // console.log('result:', content);
-
-    return { content };
-  } catch (error) {
-    console.error('Error occurred while generating chat completion:', error);
-    const result = await chatCompletion(prompt);
+    const content = response.text().trim();
+    if (!content) {
+      // Log the empty content as a warning
+      console.warn('GoogleGenerativeAI returned an empty response.');
+        // Use chatCompletion as a fallback
+      const result = await chatCompletion(prompt);
+      console.log("Using OpenAI's chatCompletion");
 
       const content = result.content;
-      //await sendAIrep(fbid, responseText);
 
-      return { content };      
+      return { content };
     }
-  
-  };
+
+
+    return { content };
+  } catch (googleError) {
+    console.error('Error occurred while using GoogleGenerativeAI:', googleError);
+
+    try {
+      // Use chatCompletion as a fallback
+      const result = await chatCompletion(prompt);
+      console.log("Using OpenAI's chatCompletion");
+
+      const content = result.content;
+
+      return { content };
+    } catch (openaiError) {
+      console.error('Error occurred during chatCompletion fallback:', openaiError);
+      throw openaiError;
+    }
+  }
+};
+
 
 module.exports = {
   googlechat,
 };
+
