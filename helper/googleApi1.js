@@ -20,22 +20,37 @@ const getApiKey = () => {
 
 const genAI = new GoogleGenerativeAI(getApiKey());
 
+
+
 const googlechat1 = async (prompt) => {
   try {
     const generationConfig = {
       maxOutputTokens: 1500,
-      temperature: 0.9,
+      temperature: 1.0,
       topP: 0.1,
       topK: 1,
     };
 
     const model = genAI.getGenerativeModel({ model: "gemini-pro", generationConfig });
+    console.log('GOOGLE question', prompt);
 
     const result = await model.generateContent(`answer directly :${prompt}`);
     const response = await result.response;
-    
+
     const content = response.text();
-    console.log('GOOGLE1');
+
+    if (!content) {
+      // Log the empty content as a warning
+      console.warn('GoogleGenerativeAI returned an empty response.');
+        // Use chatCompletion as a fallback
+      const result = await chatCompletion(prompt);
+      console.log("Using OpenAI's chatCompletion");
+
+      const content = result.content;
+
+      return { content };
+    }
+
     return { content };
   } catch (googleError) {
     console.error('Error occurred while using GoogleGenerativeAI:', googleError);
@@ -46,6 +61,7 @@ const googlechat1 = async (prompt) => {
       console.log("Using OpenAI's chatCompletion");
 
       const content = result.content;
+
       return { content };
     } catch (openaiError) {
       console.error('Error occurred during chatCompletion fallback:', openaiError);
@@ -53,6 +69,7 @@ const googlechat1 = async (prompt) => {
     }
   }
 };
+
 
 module.exports = {
   googlechat1,
