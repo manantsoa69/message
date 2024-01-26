@@ -23,7 +23,7 @@ const genAI = new GoogleGenerativeAI(getApiKey());
 const googlechat1 = async (prompt) => {
   try {
     const generationConfig = {
-      maxOutputTokens: 1000,
+      maxOutputTokens: 1500,
       temperature: 0.9,
       topP: 0.1,
       topK: 1,
