@@ -28,7 +28,7 @@ const openai = new OpenAIApi(configuration);
 const chatCompletion = async (prompt, fbid) => {
   try {
     const response = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-3.5-turbo-0301',
       messages: [
         { role: 'system', content: `answer directly with short 1 exemple  ` },
         { role: 'user', content: ` ${prompt}` },
