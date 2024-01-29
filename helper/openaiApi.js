@@ -30,7 +30,7 @@ const chatCompletion = async (prompt, fbid) => {
     const response = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo-0301',
       messages: [
-        { role: 'system', content: `answer directly with short 1 exemple  ` },
+        { role: 'system', content: `answer directly with short  exemple  ` },
         { role: 'user', content: ` ${prompt}` },
       ],
       max_tokens: 200,
