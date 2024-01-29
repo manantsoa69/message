@@ -1,19 +1,14 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/"
-    }
-  ],
-  "git": {
-    "deploymentEnabled": {
-      "main": false
-    }
-  }
+    "version":2,
+    "builds": [
+        {
+            "use": "@vercel/node"
+        }
+    ],
+    "routes":[
+        {
+            "src":"/(.*)",
+            "dest":"/"
+        }
+    ]  
 }
