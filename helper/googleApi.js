@@ -1,11 +1,9 @@
-// helper/googleApi.js
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const NodeCache = require('node-cache');
 const { chatCompletion } = require('./openaiApi');
 const myCache = new NodeCache();
-//AIzaSyCP9iulOmu8kPM2qY4iEsoKkmJ6QnQPamM
-// Function to retrieve the API key from the cache or environment variables
+
 const getApiKey = () => {
   const cachedApiKey = myCache.get('api_key');
 
@@ -18,59 +16,55 @@ const getApiKey = () => {
   }
 };
 
-const genAI = new GoogleGenerativeAI(getApiKey());
-
-
-const googlechat = async (prompt) => {
+const googlechat = async (chathistory, query) => {
+  console.log('googlechat')
   try {
-    const generationConfig = {
-      maxOutputTokens: 1500,
-      temperature: 1.0,
-      topP: 0.36,
-      topK: 1,
-    };
+    const genAI = new GoogleGenerativeAI(getApiKey());
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const [userPart, modelPart] = chathistory.split(/\/:\//);
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro", generationConfig });
-    console.log('GOOGLE');
+    const chat = model.startChat({
+      history: [
+        { role: "user", parts: userPart },
+        { role: "model", parts: modelPart }
+      ],
+      generationConfig: {
+        maxOutputTokens: 1000,
+      },
+    });
 
-    const result = await model.generateContent(`short answer :${prompt}`);
-    const response = await result.response;
+    const result = await chat.sendMessage(` ${query}`);
+    const response = result.response;
+    const content = response.text();
 
-    const content = response.text().trim();
     if (!content) {
-      // Log the empty content as a warning
       console.warn('GoogleGenerativeAI returned an empty response.');
-        // Use chatCompletion as a fallback
-      const result = await chatCompletion(prompt);
-      console.log("Using OpenAI's chatCompletion");
-
-      const content = result.content;
-
-      return { content };
+      return await handleFallback(chathistory, query);
     }
-
 
     return { content };
+
   } catch (googleError) {
-    console.error('Error occurred while using GoogleGenerativeAI:', googleError);
-
-    try {
-      // Use chatCompletion as a fallback
-      const result = await chatCompletion(prompt);
-      console.log("Using OpenAI's chatCompletion");
-
-      const content = result.content;
-
-      return { content };
-    } catch (openaiError) {
-      console.error('Error occurred during chatCompletion fallback:', openaiError);
-      throw openaiError;
-    }
+    console.error('Error occurred while using GoogleGenerativeAI:');
+    return await handleFallback(chathistory, query);
   }
 };
 
+const handleFallback = async (chathistory, query) => {
+  try {
+    const [userPart, modelPart] = chathistory.split(/\/:\//);
+    const prompt = `user:${userPart}\nmodel:${modelPart}\nuser:${query}\nmodel:`;
+    const result = await chatCompletion(prompt);
+    console.log("Using OpenAI's chatCompletion");
+
+    return { content: result.content };
+
+  } catch (openaiError) {
+    console.error('Error occurred during chatCompletion fallback:', openaiError);
+    throw openaiError;
+  }
+};
 
 module.exports = {
   googlechat,
 };
-

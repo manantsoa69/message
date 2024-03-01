@@ -10,14 +10,14 @@ const getApiKey = () => {
   if (cachedApiKey) {
     return cachedApiKey;
   } else {
-    const apiKey = process.env.API_KEY1; // Update to your environment variable
+    const apiKey = process.env.API_KEY2; // Update to your environment variable
     myCache.set('api_key', apiKey);
     return apiKey;
   }
 };
 
-const googlechat1 = async (chathistory, query) => {
-  console.log('googlechat1')
+const googlechat2 = async (chathistory, query) => {
+  console.log('googlechat2')
   try {
     const genAI = new GoogleGenerativeAI(getApiKey());
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
@@ -33,7 +33,7 @@ const googlechat1 = async (chathistory, query) => {
       },
     });
 
-    const result = await chat.sendMessage(` you are a chatbot created by AItsoa you answer is short with value :${query}`);
+    const result = await chat.sendMessage(` ${query}`);
     const response = result.response;
     const content = response.text();
 
@@ -65,6 +65,4 @@ const handleFallback = async (chathistory, query) => {
   }
 };
 
-module.exports = {
-  googlechat1,
-};
+module.exports = { googlechat2 };
