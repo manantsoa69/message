@@ -4,6 +4,7 @@ require('dotenv').config();
 const { sendMessage } = require('../helper/messengerApi');
 const { googlechat } = require('../helper/googleApi');
 const { googlechat1 } = require('../helper/googleApi1');
+const { googlechat2 } = require('../helper/googleApi2');
 const Redis = require('ioredis');
 
 const redis = new Redis(process.env.REDIS_URLCAT);
@@ -13,7 +14,7 @@ async function saveChatHistory(fbid, query, result) {
 
 
     // Check if the message is an object with a 'content' property
-    const chatEntry = `user:${query}\nmodel:${result}`;
+    const chatEntry = `${query}/:/${result}`;
 
     // Set a limit to keep only the latest 1 entry
     await redis.multi()
@@ -27,18 +28,17 @@ async function saveChatHistory(fbid, query, result) {
   }
 }
 
-
-
 // Function to retrieve chat history from Redis
 async function getChatHistory(fbid) {
   try {
     const chatHistory = await redis.lrange(`${fbid}`, 0, -1);
-    return chatHistory || [];
+    return chatHistory.length > 0 ? chatHistory : [/:/];
   } catch (error) {
     console.error('Error retrieving chat history from Redis:', error);
     throw error; // Rethrow the error to propagate it to the caller
   }
 }
+
 const lastProcessedPrompts = {}; 
 // Handle GET requests for verification
 router.get('/', (req, res) => {
@@ -73,20 +73,22 @@ router.post('/', async (req, res) => {
         // Set the last processed prompt for the current user
         lastProcessedPrompts[fbid] = query;
         const chatHistory = await getChatHistory(fbid);
-        const chat = `${chatHistory}\nuser:${query}\nmodel:`;
+        const chathistory = `${chatHistory}`;
 
         try {
           let result;
-          if (Math.random() < 0.5) {
-            result = await googlechat1(chat, fbid);
+          const random = Math.random();
+          if (random < 0.33) {
+            result = await googlechat(chathistory, query);
+          } else if (random < 0.66) {
+            result = await googlechat1(chathistory, query);
           } else {
-            result = await googlechat(chat, fbid);
+            result = await googlechat2(chathistory, query);
           }
+
           if (typeof result === 'object' && result.content) {
-              result = result.content;
+            result = result.content;
           }
-
-
 
           await Promise.all([
             saveChatHistory(fbid, query, result),
@@ -107,6 +109,7 @@ router.post('/', async (req, res) => {
 
   res.sendStatus(200);
 });
+
 
 
 module.exports = {
