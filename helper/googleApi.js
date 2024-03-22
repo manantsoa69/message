@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const NodeCache = require('node-cache');
-const { chatCompletion } = require('./openaiApi');
+const { askHercai } = require('./openaiApi');
 const myCache = new NodeCache();
 
 const getApiKey = () => {
@@ -33,7 +33,7 @@ const googlechat = async (chathistory, query) => {
       },
     });
 
-    const result = await chat.sendMessage(` ${query}`);
+    const result = await chat.sendMessage(`You are a chatbot. You respond with determined responses, not really long ones: ${query}`);
     const response = result.response;
     const content = response.text();
 
@@ -54,10 +54,10 @@ const handleFallback = async (chathistory, query) => {
   try {
     const [userPart, modelPart] = chathistory.split(/\/:\//);
     const prompt = `user:${userPart}\nmodel:${modelPart}\nuser:${query}\nmodel:`;
-    const result = await chatCompletion(prompt);
+    const result = await askHercai(prompt);
     console.log("Using OpenAI's chatCompletion");
 
-    return { content: result.content };
+    return { content: result };
 
   } catch (openaiError) {
     console.error('Error occurred during chatCompletion fallback:', openaiError);
